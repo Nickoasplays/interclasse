@@ -1,0 +1,1381 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cronômetro Interclasse</title>
+    <!-- Carrega Tailwind CSS para estilização rápida e responsiva -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Define a fonte Inter como padrão para melhor legibilidade */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0d1117; /* Fundo escuro */
+        }
+        .timer-button {
+            transition: all 0.15s ease-in-out;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+            font-weight: 600;
+        }
+        .timer-button:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 8px rgba(0, 0, 0, 0.3);
+        }
+        .animate-pulse-fast {
+            animation: pulse 1s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: .5; }
+        }
+        /* Estilo do Input de Jogador (Roster) */
+        .roster-input {
+            background-color: transparent;
+            border: none;
+            border-bottom: 1px solid #4b5563; /* Cor cinza-escuro */
+            padding: 4px 0;
+            width: 100%;
+            text-align: left;
+            color: #d1d5db;
+            transition: border-bottom-color 0.2s;
+            line-height: 1.5;
+        }
+        .roster-input:focus {
+            outline: none;
+            border-bottom-color: #34d399; /* Cor verde claro no foco */
+        }
+        /* Classe para destacar nomes duplicados */
+        .roster-input.duplicate-name {
+            color: #f87171; /* Cor vermelha */
+            font-weight: bold;
+            border-bottom-color: #f87171;
+        }
+
+        /* Efeito de Confete (para o modal de vitória) */
+        .confetti-animation {
+            animation: confetti-rain 1.5s forwards;
+        }
+        @keyframes confetti-rain {
+            0% { transform: translateY(-100%); opacity: 0; }
+            50% { opacity: 1; }
+            100% { transform: translateY(0); opacity: 1; }
+        }
+        /* Classe para mostrar o popover de cartões AO CLICAR */
+        .card-popover-open {
+            display: block !important;
+        }
+        
+        /* Estilo do input de número da camisa */
+        .jersey-input {
+            width: 30px; 
+            background: #2d3748; /* bg-gray-700 */
+            border: 1px solid #4a5568;
+            border-radius: 4px;
+            text-align: center;
+            color: #fff;
+            font-size: 1rem;
+            line-height: 1.25rem;
+            padding: 2px 0;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+
+        .jersey-input:focus {
+            outline: none;
+            border-color: #4299e1; /* Cor azul de foco */
+            box-shadow: 0 0 0 1px #4299e1;
+        }
+
+        /* Oculta as setas em inputs number */
+        .jersey-input::-webkit-outer-spin-button,
+        .jersey-input::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        .jersey-input {
+            -moz-appearance: textfield;
+        }
+
+        /* Estilo para cartões ativos (indicador pequeno) */
+        .card-indicator {
+            display: inline-flex;
+            align-items: center;
+            line-height: 1; /* Garante que as bolhas fiquem alinhadas */
+        }
+        .card-indicator .yellow-dot {
+            width: 8px;
+            height: 8px;
+            background-color: #facc15; /* Amarelo */
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 2px;
+        }
+        .card-indicator .red-dot {
+            width: 8px;
+            height: 8px;
+            background-color: #f87171; /* Vermelho */
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 2px;
+        }
+
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4">
+
+    <div id="app" class="bg-gray-800 p-6 sm:p-10 rounded-xl shadow-2xl w-full max-w-lg">
+        <!-- Título -->
+        <h1 class="text-3xl sm:text-4xl font-extrabold text-white text-center mb-6 border-b border-blue-500 pb-3">
+            Gestor de Tempo Interclasse
+        </h1>
+
+        <!-- Seletores de Gênero e Esporte -->
+        <div class="grid grid-cols-2 gap-4 mb-6">
+            <!-- Seletor de Gênero -->
+            <div>
+                <label for="seletorGenero" class="block text-lg font-medium text-gray-300 mb-2">
+                    Gênero:
+                </label>
+                <select id="seletorGenero" onchange="tocarClique(); handleSelectionChange();"
+                        class="w-full p-3 text-xl rounded-lg border-2 border-gray-600 bg-gray-700 text-white focus:outline-none focus:border-blue-500">
+                    <option value="Feminino">Feminino</option>
+                    <option value="Masculino">Masculino</option>
+                    <option value="Misto">Misto/Outro</option>
+                </select>
+            </div>
+            
+            <!-- Seletor de Esporte -->
+            <div>
+                <label for="seletorEsporte" class="block text-lg font-medium text-gray-300 mb-2">
+                    Esporte:
+                </label>
+                <select id="seletorEsporte" onchange="tocarClique(); handleSelectionChange();"
+                        class="w-full p-3 text-xl rounded-lg border-2 border-gray-600 bg-gray-700 text-white focus:outline-none focus:border-blue-500">
+                    <option value="Futsal">Futsal</option>
+                    <option value="Volei">Vôlei</option>
+                    <option value="Futebol">Futebol</option>
+                    <option value="Queimada">Queimada</option>
+                </select>
+            </div>
+        </div>
+
+
+        <!-- Display do Cronômetro -->
+        <div class="mb-8 p-4 bg-gray-900 rounded-lg text-center">
+            <span id="displayTempo" class="text-8xl sm:text-9xl font-mono font-bold text-blue-400">
+                00:00
+            </span>
+            <!-- MENSAGEM DE STATUS/PREVISÃO DE TÉRMINO (ATUALIZADA) -->
+            <p id="estadoMensagem" class="text-sm text-gray-400 mt-2">Pronto para iniciar!</p>
+        </div>
+
+        <!-- Seletor de Tempo -->
+        <div class="mb-8 space-y-4">
+            <label for="minutosInput" class="block text-lg font-medium text-gray-300">
+                Definir Tempo (Minutos):
+            </label>
+            <div class="flex space-x-2">
+                <input type="number" id="minutosInput" value="10" min="1" max="60"
+                       class="flex-grow p-3 text-2xl rounded-lg border-2 border-gray-600 bg-gray-700 text-white focus:outline-none focus:border-blue-500"
+                       onchange="definirTempoInicial()" />
+                <button onclick="tocarClique(); definirTempoInicial();"
+                        class="timer-button px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 active:bg-blue-800">
+                    Definir
+                </button>
+            </div>
+            
+            <!-- Botões de Predefinição Rápida -->
+            <div class="flex justify-between space-x-2 mt-4">
+                <button onclick="tocarClique(); predefinirTempo(5)" class="flex-1 px-3 py-2 text-sm bg-gray-600 text-white rounded-lg hover:bg-gray-700">5 Min</button>
+                <button onclick="tocarClique(); predefinirTempo(10)" class="flex-1 px-3 py-2 text-sm bg-gray-600 text-white rounded-lg hover:bg-gray-700">10 Min</button>
+                <button onclick="tocarClique(); predefinirTempo(15)" class="flex-1 px-3 py-2 text-sm bg-gray-600 text-white rounded-lg hover:bg-gray-700">15 Min</button>
+            </div>
+        </div>
+
+        <!-- Botões de Controle -->
+        <div class="grid grid-cols-3 gap-4 mb-10">
+            <!-- Botão Iniciar / Pausar / Continuar -->
+            <button id="btnIniciar" onclick="tocarClique(); iniciarOuPausar()"
+                    class="timer-button col-span-2 p-4 text-xl rounded-lg text-white bg-green-600 hover:bg-green-700 active:bg-green-800">
+                Iniciar
+            </button>
+
+            <!-- Botão Reiniciar -->
+            <button id="btnReiniciar" onclick="tocarClique(); reiniciar()" disabled
+                    class="timer-button p-4 text-xl rounded-lg text-white bg-red-600 hover:bg-red-700 active:bg-red-800 disabled:opacity-50 disabled:cursor-not-allowed">
+                Reiniciar
+            </button>
+        </div>
+        
+        <!-- Gestor de Pontos e Roster -->
+        <div class="mt-8 pt-6 border-t border-gray-700">
+            <h2 class="text-2xl font-bold text-white text-center mb-4 flex items-center justify-center space-x-2">
+                <span>Gestor de Placar e Jogadores</span>
+                <span class="text-green-400">📊</span>
+            </h2>
+
+            <!-- Exibição do User ID para Colaboração (TEXTO INICIAL ALTERADO PARA "CARREGANDO...") -->
+            <div class="text-xs text-center text-gray-400 mb-4 p-2 bg-gray-900 rounded-lg">
+                Seu ID de Usuário (compartilhe para sincronizar): <span id="currentUserId" class="font-mono text-yellow-400 break-all">Carregando...</span>
+            </div>
+
+            <!-- Seletor de Modo de Placar (Simples/Avançado) -->
+            <div class="flex justify-center space-x-4 mb-6">
+                <!-- BOTÃO RENOMEADO: PLACAR -->
+                <button id="btnSimples" onclick="tocarClique(); setScoreMode('Simples')"
+                        class="timer-button p-3 text-lg rounded-lg text-white bg-blue-600 hover:bg-blue-700 active:bg-blue-800 flex-1">
+                    Placar
+                </button>
+                <!-- BOTÃO RENOMEADO: SELETOR DE PLACARES -->
+                <button id="btnAvancado" onclick="tocarClique(); setScoreMode('Avançado')"
+                        class="timer-button p-3 text-lg rounded-lg text-white bg-gray-600 hover:bg-gray-700 active:bg-gray-800 flex-1">
+                    Seletor de Placares
+                </button>
+            </div>
+
+
+            <!-- PLACAR PRINCIPAL (Visível em ambos os modos, mas controles escondidos no Avançado) -->
+            <div id="scoreControls" class="flex justify-between items-center bg-gray-900 p-4 rounded-xl shadow-inner mb-6">
+                <!-- Time A -->
+                <div class="flex-1 text-center border-r border-gray-700 pr-3">
+                    <input type="text" id="timeNameA" placeholder="Time A" onchange="handleTeamNameChange('A', this.value)"
+                           class="w-full text-lg font-semibold bg-transparent text-white text-center focus:outline-none focus:ring-1 focus:ring-green-400 rounded-md" />
+                    
+                    <span id="scoreDisplayA" class="text-6xl font-extrabold text-green-400">0</span>
+                    <div id="scoreButtonsA" class="flex justify-center mt-2 space-x-2">
+                        <button onclick="tocarClique(); handleScoreChange('A', 1)" class="p-2 w-10 text-xl font-bold rounded-lg bg-green-700 hover:bg-green-600">+</button>
+                        <button onclick="tocarClique(); handleScoreChange('A', -1)" class="p-2 w-10 text-xl font-bold rounded-lg bg-red-700 hover:bg-red-600">-</button>
+                    </div>
+                </div>
+
+                <!-- Separador -->
+                <div class="text-4xl font-extrabold text-gray-500 mx-3">X</div>
+
+                <!-- Time B -->
+                <div class="flex-1 text-center border-l border-gray-700 pl-3">
+                    <input type="text" id="timeNameB" placeholder="Time B" onchange="handleTeamNameChange('B', this.value)"
+                           class="w-full text-lg font-semibold bg-transparent text-white text-center focus:outline-none focus:ring-1 focus:ring-green-400 rounded-md" />
+                    
+                    <span id="scoreDisplayB" class="text-6xl font-extrabold text-green-400">0</span>
+                    <div id="scoreButtonsB" class="flex justify-center mt-2 space-x-2">
+                        <button onclick="tocarClique(); handleScoreChange('B', 1)" class="p-2 w-10 text-xl font-bold rounded-lg bg-green-700 hover:bg-green-600">+</button>
+                        <button onclick="tocarClique(); handleScoreChange('B', -1)" class="p-2 w-10 text-xl font-bold rounded-lg bg-red-700 hover:bg-red-600">-</button>
+                    </div>
+                </div>
+            </div>
+            
+            
+            <!-- CONTAINER FLEXÍVEL DE CONTEÚDO (Modo Simples vs Avançado) -->
+            <div id="flexibleContentArea">
+                <!-- Conteúdo é injetado aqui -->
+            </div>
+        </div>
+
+        <!-- Gemini Feature 1: Gerador de Estratégias e Gritos de Guerra -->
+        <div class="mt-8 pt-6 border-t border-gray-700">
+            <h2 class="text-2xl font-bold text-white text-center mb-4 flex items-center justify-center space-x-2">
+                <span>Gerador de Gritos e Estratégias</span>
+                <span class="text-yellow-400">✨</span>
+            </h2>
+            <input type="text" id="esporteInput" placeholder="Ex: Futsal, Vôlei ou Turma 3A"
+                   class="w-full p-3 mb-4 rounded-lg border-2 border-gray-600 bg-gray-700 text-white placeholder-gray-400 focus:outline-none focus:border-purple-500" />
+            
+            <button id="btnGerar" onclick="tocarClique(); gerarConteudoInterclasse()"
+                    class="timer-button w-full p-4 text-xl rounded-lg text-white bg-purple-600 hover:bg-purple-700 active:bg-purple-800 disabled:opacity-50 disabled:cursor-not-allowed">
+                Gerar Ideias
+            </button>
+
+            <div id="resultadoGemini" class="mt-4 p-4 bg-gray-700 rounded-lg text-gray-200 min-h-[50px] whitespace-pre-wrap">
+                Aguardando sua entrada...
+            </div>
+        </div>
+        
+        <!-- Seção de Autoria e Doação (NOVO) -->
+        <div class="mt-8 pt-6 border-t border-gray-700 text-center">
+            <h3 class="text-xl font-bold text-white mb-3">💖 Apoie Nickoasplays!</h3>
+            <p class="text-gray-400 mb-4">Gostou do aplicativo? Considere fazer uma doação via Pix:</p>
+            
+            <a href="https://wa.me/5511978653846?text=Doa%C3%A7%C3%A3o+para+Nickoasplays" target="_blank"
+                class="inline-block bg-green-700 p-3 rounded-lg shadow-xl hover:bg-green-600 transition duration-150 cursor-pointer">
+                <span class="text-white text-lg font-mono font-bold select-all">+55 11 97865-3846</span>
+            </a>
+            <p class="text-sm text-gray-500 mt-2">Chave Pix (Celular)</p>
+
+            <p class="mt-6 text-sm text-gray-500">Made by <span class="font-semibold text-blue-400">Nickoasplays.</span></p>
+        </div>
+
+
+        <!-- Modal de Vitória (NOVO) -->
+        <div id="winModal" class="fixed inset-0 bg-black bg-opacity-70 backdrop-blur-sm hidden items-center justify-center p-4 z-50 transition duration-300">
+            <div class="bg-yellow-500 p-8 rounded-xl shadow-2xl text-center relative max-w-sm w-full border-4 border-yellow-300 confetti-animation">
+                <h3 class="text-5xl font-extrabold text-gray-900 mb-4 animate-bounce">🏆 VITÓRIA! 🏆</h3>
+                <p id="winnerMessage" class="text-3xl font-bold text-gray-900 mb-6"></p>
+                <p id="finalScoreMessage" class="text-xl text-gray-900 mb-6"></p>
+                <button onclick="tocarClique(); document.getElementById('winModal').classList.add('hidden');"
+                        class="timer-button w-full p-3 text-lg rounded-lg text-white bg-red-600 hover:bg-red-700 active:bg-red-800">
+                    Fechar e Reiniciar
+                </button>
+            </div>
+        </div>
+
+        <!-- Modal Personalizado para Adicionar Partida (NOVO) -->
+        <div id="addMatchModal" class="fixed inset-0 bg-black bg-opacity-70 backdrop-blur-sm hidden items-center justify-center p-4 z-50 transition duration-300">
+            <div class="bg-gray-700 p-6 rounded-xl shadow-2xl relative max-w-sm w-full border-4 border-blue-500">
+                <h3 class="text-2xl font-extrabold text-white mb-4 text-center">Adicionar Nova Partida</h3>
+                
+                <label for="newTeamA" class="block text-sm font-medium text-gray-300 mb-1">Nome do Time A:</label>
+                <input type="text" id="newTeamA" placeholder="Ex: 3A Futsal" 
+                       class="w-full p-3 mb-4 rounded-lg border-2 border-gray-600 bg-gray-800 text-white focus:outline-none focus:border-green-400" />
+                
+                <label for="newTeamB" class="block text-sm font-medium text-gray-300 mb-1">Nome do Time B:</label>
+                <input type="text" id="newTeamB" placeholder="Ex: 2B Vôlei" 
+                       class="w-full p-3 mb-6 rounded-lg border-2 border-gray-600 bg-gray-800 text-white focus:outline-none focus:border-green-400" />
+                
+                <div class="flex space-x-3">
+                    <button onclick="confirmAddMatch()"
+                            class="timer-button flex-1 p-3 text-lg rounded-lg text-white bg-green-600 hover:bg-green-700 active:bg-green-800">
+                        Confirmar
+                    </button>
+                    <button onclick="hideAddMatchModal()"
+                            class="timer-button flex-1 p-3 text-lg rounded-lg text-white bg-red-600 hover:bg-red-700 active:bg-red-800">
+                        Cancelar
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+    </div>
+    
+    <!-- Modal de Cobertura para fechar o Popover ao clicar fora -->
+    <div id="popoverCover" class="fixed inset-0 z-10 hidden" onclick="hideAllPopovers()"></div>
+
+    <script type="module">
+        // --- Firebase Imports e Configuração ---
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        
+        // Ativa o logging de debug para o Firestore (Obrigatório)
+        setLogLevel('debug'); 
+
+        // Variáveis globais do ambiente (Obrigatório usar)
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+        
+        let db;
+        let auth;
+        let userId = null;
+        let activePopoverId = null; // Rastreia o popover aberto
+
+        // --- Configuração de Tamanho do Roster ---
+        const MAX_ROSTER_SIZE_MAP = {
+            Futsal: 10,     
+            Volei: 10,      
+            Futebol: 16,    
+            Queimada: 12    
+        };
+        const INITIAL_ROSTER_SLOTS = 5; 
+        const MIN_ROSTER_SLOTS = 3;     
+
+        // Objeto de jogador padrão (para inicialização)
+        const defaultPlayer = (i) => ({ 
+            name: `Jogador ${i}`, 
+            jerseyNumber: i, // Adicionado número da camisa
+            cards: { yellow: 0, yellow2: 0, red: 0 } 
+        });
+
+        // Estado do Jogo (Sincronizado via Firestore)
+        let gameState = {
+            gender: 'Feminino',
+            sport: 'Futsal',
+            scoreMode: 'Simples', // 'Simples' ou 'Avançado'
+            scoreA: 0,
+            scoreB: 0,
+            teamNameA: 'Time A',
+            teamNameB: 'Time B',
+            rosterA: Array(INITIAL_ROSTER_SLOTS).fill(0).map((_, i) => defaultPlayer(i + 1)),
+            rosterB: Array(INITIAL_ROSTER_SLOTS).fill(0).map((_, i) => defaultPlayer(i + 1)),
+            // Dados para o Modo Avançado (Tabela de Jogos) - Inicializado Vazio
+            matchSchedule: [], 
+        };
+        
+        // Função para obter o caminho do documento no Firestore (Privado por padrão)
+        function getFirestorePath() {
+            // Caminho: /artifacts/{appId}/users/{userId}/interclasse_data/state
+            return doc(db, 'artifacts', appId, 'users', userId, 'interclasse_data', 'state');
+        }
+
+        // Função para inicializar Firebase e autenticação
+        async function initializeFirebase() {
+            if (!firebaseConfig) {
+                console.error("Firebase config is missing. Cannot initialize Firestore.");
+                return;
+            }
+
+            const app = initializeApp(firebaseConfig);
+            db = getFirestore(app);
+            auth = getAuth(app);
+            
+            try {
+                if (initialAuthToken) {
+                    await signInWithCustomToken(auth, initialAuthToken);
+                } else {
+                    await signInAnonymously(auth);
+                }
+            } catch (error) {
+                console.error("Firebase Auth error, falling back to random UUID:", error);
+                userId = crypto.randomUUID();
+                document.getElementById('currentUserId').textContent = userId + " (Anônimo)";
+                setupFirestoreListener();
+                return;
+            }
+
+            onAuthStateChanged(auth, (user) => {
+                if (user) {
+                    userId = user.uid;
+                    document.getElementById('currentUserId').textContent = userId;
+                    setupFirestoreListener();
+                } else {
+                    userId = crypto.randomUUID();
+                    document.getElementById('currentUserId').textContent = userId + " (Anônimo)";
+                    setupFirestoreListener();
+                }
+            });
+        }
+        
+        // Função para salvar o estado do jogo no Firestore
+        async function saveGameState() {
+            if (!db || !userId) return;
+            try {
+                // Ao salvar, forçamos o re-render chamando updateScoreAndRosterUI
+                await setDoc(getFirestorePath(), gameState);
+            } catch (e) {
+                console.error("Error saving game state:", e);
+            }
+        }
+        
+        // Função para escutar atualizações em tempo real do Firestore
+        function setupFirestoreListener() {
+            if (!db || !userId) return;
+            
+            onSnapshot(getFirestorePath(), (docSnapshot) => {
+                let shouldSave = false;
+                if (docSnapshot.exists()) {
+                    const loadedState = docSnapshot.data();
+                    
+                    // Tratamento de migração/fallback para garantir que o roster tenha o jerseyNumber
+                    if (Array.isArray(loadedState.rosterA) && loadedState.rosterA.length > 0) {
+                        loadedState.rosterA.forEach((player, i) => {
+                            if (typeof player.jerseyNumber === 'undefined') {
+                                player.jerseyNumber = i + 1; // Atribui valor padrão se não existir
+                                shouldSave = true;
+                            }
+                        });
+                        loadedState.rosterB.forEach((player, i) => {
+                            if (typeof player.jerseyNumber === 'undefined') {
+                                player.jerseyNumber = i + 1;
+                                shouldSave = true;
+                            }
+                        });
+                    }
+                    
+                    // Garante que o matchSchedule exista
+                    if (!loadedState.matchSchedule) {
+                        loadedState.matchSchedule = gameState.matchSchedule;
+                    }
+
+                    gameState = { ...gameState, ...loadedState };
+                } else {
+                    shouldSave = true; // Se o documento não existir, salva o estado inicial
+                }
+                
+                // Garante que os seletores reflitam o estado
+                const seletorEsporte = document.getElementById('seletorEsporte');
+                const seletorGenero = document.getElementById('seletorGenero');
+                if (seletorEsporte && gameState.sport) seletorEsporte.value = gameState.sport;
+                if (seletorGenero && gameState.gender) seletorGenero.value = gameState.gender;
+
+                // Atualiza a UI sempre que o estado é carregado ou mudado
+                updateScoreAndRosterUI(); 
+                
+                if (shouldSave) saveGameState();
+            }, (error) => {
+                console.error("Firestore listen error:", error);
+            });
+        }
+
+        // --- Funções de Estado e UI ---
+
+        // Atualiza a interface do Placar, Roster e Selector com o gameState
+        function updateScoreAndRosterUI() {
+            // 1. Atualiza placar e nomes
+            document.getElementById('scoreDisplayA').textContent = gameState.scoreA;
+            document.getElementById('scoreDisplayB').textContent = gameState.scoreB;
+            document.getElementById('timeNameA').value = gameState.teamNameA;
+            document.getElementById('timeNameB').value = gameState.teamNameB;
+            
+            // 2. Atualiza botões Simples/Avançado (apenas visual)
+            const btnSimples = document.getElementById('btnSimples');
+            const btnAvancado = document.getElementById('btnAvancado');
+            const scoreControls = document.getElementById('scoreControls');
+            const flexibleContentArea = document.getElementById('flexibleContentArea');
+            // Referências aos botões de score 
+            const scoreButtonsA = document.getElementById('scoreButtonsA');
+            const scoreButtonsB = document.getElementById('scoreButtonsB');
+
+            if (btnSimples && btnAvancado) {
+                if (gameState.scoreMode === 'Simples') {
+                    // Atualiza estilos do botão de modo
+                    btnSimples.classList.replace('bg-gray-600', 'bg-blue-600');
+                    btnSimples.classList.replace('hover:bg-gray-700', 'hover:bg-blue-700');
+                    btnAvancado.classList.replace('bg-blue-600', 'bg-gray-600');
+                    btnAvancado.classList.replace('hover:bg-blue-700', 'hover:bg-gray-700');
+                    
+                    // Exibe controles de placar e renderiza o Roster
+                    scoreControls.classList.remove('opacity-50'); 
+                    scoreButtonsA.classList.remove('pointer-events-none', 'opacity-50');
+                    scoreButtonsB.classList.remove('pointer-events-none', 'opacity-50');
+                    renderSimpleRoster(flexibleContentArea);
+
+                } else { // Avançado
+                    // Atualiza estilos do botão de modo
+                    btnAvancado.classList.replace('bg-gray-600', 'bg-blue-600');
+                    btnAvancado.classList.replace('hover:bg-gray-700', 'hover:bg-blue-700');
+                    btnSimples.classList.replace('bg-blue-600', 'bg-gray-600');
+                    btnSimples.classList.replace('hover:bg-blue-700', 'hover:bg-gray-700');
+
+                    // Desabilita visualmente o placar, mas permite a edição do nome dos times.
+                    // Apenas os botões de + / - são bloqueados.
+                    scoreControls.classList.add('opacity-50'); 
+                    scoreButtonsA.classList.add('pointer-events-none', 'opacity-50');
+                    scoreButtonsB.classList.add('pointer-events-none', 'opacity-50');
+                    renderAdvancedMatchTracker(flexibleContentArea);
+                }
+            }
+        }
+
+        // Função para alternar o modo de placar
+        window.setScoreMode = function(mode) {
+            if (gameState.scoreMode !== mode) {
+                gameState.scoreMode = mode;
+                saveGameState();
+            }
+        }
+        
+        // Função para fechar todos os popovers (chamada ao clicar no fundo)
+        window.hideAllPopovers = function() {
+            if (activePopoverId) {
+                const activePopover = document.getElementById(activePopoverId);
+                if (activePopover) {
+                    activePopover.classList.remove('card-popover-open');
+                }
+                activePopoverId = null;
+            }
+            document.getElementById('popoverCover').classList.add('hidden');
+        }
+
+        // Renderiza a lista de inputs do Roster (Modo Simples)
+        function renderSimpleRoster(container) {
+            // Feche o popover ao re-renderizar
+            hideAllPopovers();
+
+            // Renderiza títulos do Roster
+            const rosterTitleA = `Jogadores - ${gameState.teamNameA}`;
+            const rosterTitleB = `Jogadores - ${gameState.teamNameB}`;
+
+            // Cria a estrutura HTML
+            container.innerHTML = `
+                <div class="grid grid-cols-2 gap-4 text-sm mt-0">
+                    <div class="bg-gray-700 p-3 rounded-lg">
+                        <p class="font-bold text-gray-300 mb-2 text-center" id="rosterTitleA">${rosterTitleA}</p>
+                        <div id="rosterListA"></div>
+                    </div>
+                    <div class="bg-gray-700 p-3 rounded-lg">
+                        <p class="font-bold text-gray-300 mb-2 text-center" id="rosterTitleB">${rosterTitleB}</p>
+                        <div id="rosterListB"></div>
+                    </div>
+                </div>
+            `;
+            
+            // Injeta as listas de jogadores nas sub-áreas
+            renderRosterList('A', gameState.rosterA, document.getElementById('rosterListA'));
+            renderRosterList('B', gameState.rosterB, document.getElementById('rosterListB'));
+        }
+        
+        // Função para abrir o popover e fechar os outros (RENOMEADA)
+        window.toggleCardPopover = function(team, index, event) {
+            tocarClique();
+            event.stopPropagation(); // Previne que o clique feche imediatamente
+            
+            const popoverId = `cardPopover${team}${index}`;
+            const popover = document.getElementById(popoverId);
+
+            if (activePopoverId === popoverId) {
+                hideAllPopovers(); // Fecha o popover ativo
+            } else {
+                hideAllPopovers(); // Fecha qualquer outro popover
+                popover.classList.add('card-popover-open');
+                activePopoverId = popoverId;
+                document.getElementById('popoverCover').classList.remove('hidden');
+            }
+        }
+        
+        // NOVO: Função para contar nomes duplicados em um roster
+        function findDuplicateNames(roster) {
+            const nameCounts = {};
+            roster.forEach(player => {
+                const name = player.name.trim().toLowerCase();
+                if (name) { // Ignora nomes vazios/padrão
+                    nameCounts[name] = (nameCounts[name] || 0) + 1;
+                }
+            });
+            return nameCounts;
+        }
+
+        // NOVO: Função para exibir bolhas de cartões pequenos
+        function displayPlayerSmallIndicator(cards) {
+            let html = '<div class="card-indicator">';
+            if (cards.yellow > 0 || cards.yellow2 > 0) {
+                html += '<span class="yellow-dot" title="Cartão Amarelo"></span>';
+            }
+            if (cards.red > 0 || cards.yellow2 > 0) { // Mostra vermelho se houver vermelho direto ou 2º amarelo
+                 html += '<span class="red-dot" title="Cartão Vermelho/Expulsão"></span>';
+            }
+            html += '</div>';
+            return html;
+        }
+
+
+        // Função interna que constrói a lista de jogadores e controles de cartão
+        function renderRosterList(team, rosterArray, listElement) {
+            const maxRosterSize = MAX_ROSTER_SIZE_MAP[gameState.sport] || 10; 
+            const isMax = rosterArray.length >= maxRosterSize;
+            const isMin = rosterArray.length <= MIN_ROSTER_SLOTS;
+            
+            // NOVO: Conta os nomes duplicados para este time
+            const nameCounts = findDuplicateNames(rosterArray);
+
+            const inputs = rosterArray.map((player, index) => {
+                const cards = player.cards;
+                
+                // NOVO: Gera os indicadores de cartão no formato de bolhas
+                const cardIndicator = displayPlayerSmallIndicator(cards);
+                
+                const popoverId = `cardPopover${team}${index}`;
+                
+                // NOVO: Checa se o nome atual é duplicado (case-insensitive e trim)
+                const isDuplicate = nameCounts[player.name.trim().toLowerCase()] > 1; 
+                // NOVO: Classe para destacar o nome
+                const nameClass = isDuplicate ? 'duplicate-name' : ''; 
+
+                // HTML para o Popover de Cartões (Visível ao clicar no número da camisa)
+                const cardPopover = `
+                    <div id="${popoverId}" class="card-popover absolute left-1/2 transform -translate-x-1/2 top-full mt-1 z-20 
+                                  bg-gray-700 p-3 rounded-xl shadow-2xl hidden w-56 sm:w-64 border-2 border-red-500"
+                                  onclick="event.stopPropagation()">
+                        <p class="text-center font-bold text-red-400 mb-2 text-base">Gestor de Cartões</p>
+                        
+                        <!-- Campo para editar o número da camisa dentro do popover -->
+                        <div class="flex items-center justify-center space-x-2 mb-3">
+                            <label class="text-white text-sm">Camisa:</label>
+                            <input type="number" value="${player.jerseyNumber}" min="0" max="99" 
+                                   onchange="handleJerseyNumberChange('${team}', ${index}, this.value, true)"
+                                   class="jersey-input w-12 h-8 text-lg font-bold" />
+                        </div>
+
+                        <!-- Indicadores de Cartões Ativos (detalhado) -->
+                        <div class="flex justify-center space-x-2 mb-3 text-sm font-bold border-b border-gray-600 pb-2">
+                             <div class="flex items-center space-x-1"><span class="text-yellow-500">Y</span><span class="text-white">${cards.yellow}</span></div>
+                             <div class="flex items-center space-x-1"><span class="text-yellow-400 font-extrabold">YY</span><span class="text-white">${cards.yellow2}</span></div>
+                             <div class="flex items-center space-x-1"><span class="text-red-500">R</span><span class="text-white">${cards.red}</span></div>
+                        </div>
+                        
+                        <!-- Botões de Controle de Cartões -->
+                        <div class="flex flex-wrap justify-center gap-1">
+                            <button onclick="tocarClique(); handlePlayerCardChange('${team}', ${index}, 'yellow', 1)" title="Adicionar Amarelo (1º)"
+                                    class="p-1 text-xs rounded bg-yellow-500 hover:bg-yellow-600 text-gray-900 font-bold flex-1 min-w-[40px] shadow-md transition duration-150">+</button>
+                            <button onclick="tocarClique(); handlePlayerCardChange('${team}', ${index}, 'yellow2', 1)" title="Adicionar 2º Amarelo (Expulsão)"
+                                    class="p-1 text-xs rounded bg-yellow-400 hover:bg-yellow-500 text-gray-900 font-bold flex-1 min-w-[40px] border border-yellow-700 shadow-md transition duration-150">++</button>
+                            <button onclick="tocarClique(); handlePlayerCardChange('${team}', ${index}, 'red', 1)" title="Adicionar Vermelho Direto"
+                                    class="p-1 text-xs rounded bg-red-600 hover:bg-red-700 text-white font-bold flex-1 min-w-[40px] shadow-md transition duration-150">+</button>
+                            <button onclick="tocarClique(); handlePlayerCardChange('${team}', ${index}, 'reset', 0)" title="Limpar Cartões"
+                                    class="p-1 text-xs rounded bg-gray-500 hover:bg-gray-600 text-white font-bold flex-1 min-w-[40px] shadow-md transition duration-150">Limpar</button>
+                        </div>
+                        <button onclick="tocarClique(); hideAllPopovers();" class="mt-3 w-full p-2 text-sm rounded-lg bg-gray-600 hover:bg-gray-500 text-white font-bold">
+                            Fechar
+                        </button>
+                    </div>
+                `;
+
+                return `
+                    <div class="mb-1 flex items-center space-x-2 relative player-trigger">
+                        <!-- Campo de Input para o Número da Camisa (CLICÁVEL) -->
+                        <span onclick="toggleCardPopover('${team}', ${index}, event)" class="cursor-pointer">
+                            <input type="number" value="${player.jerseyNumber}" min="0" max="99" 
+                                   onchange="handleJerseyNumberChange('${team}', ${index}, this.value, false)"
+                                   class="jersey-input" />
+                        </span>
+                        
+                        <!-- Indicador de Cartões (NOVA POSIÇÃO: Após o número da camisa) -->
+                        <div class="flex items-center h-full">
+                            ${cardIndicator}
+                        </div>
+                        
+                        <!-- Input do Nome do Jogador (com classe condicional para duplicidade) -->
+                        <input type="text" value="${player.name}" placeholder="Jogador ${index + 1}"
+                               onchange="handlePlayerNameChange('${team}', ${index}, this.value)"
+                               class="roster-input flex-grow ${nameClass}" /> 
+                        
+                        ${cardPopover}
+                    </div>
+                `;
+            }).join('');
+
+            // Cria os botões de adicionar/remover
+            const buttons = `
+                <div class="flex justify-center space-x-2 mt-3 pt-3 border-t border-gray-600">
+                    <button onclick="tocarClique(); handleAddPlayer('${team}')" 
+                            ${isMax ? 'disabled' : ''}
+                            class="p-2 text-sm rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-30 disabled:cursor-not-allowed flex-1 transition duration-150">
+                        Adicionar (+1)
+                    </button>
+                    <button onclick="tocarClique(); handleRemovePlayer('${team}')"
+                            ${isMin ? 'disabled' : ''}
+                            class="p-2 text-sm rounded-lg bg-gray-500 text-white hover:bg-gray-600 disabled:opacity-30 disabled:cursor-not-allowed flex-1 transition duration-150">
+                        Remover (-1)
+                    </button>
+                </div>
+                <p class="text-xs text-gray-400 text-center mt-2">Máx: ${maxRosterSize} (Atual: ${rosterArray.length})</p>
+            `;
+
+            listElement.innerHTML = inputs + buttons;
+        }
+
+        // Renderiza a lista de partidas (Modo Avançado)
+        function renderAdvancedMatchTracker(container) {
+            // Feche o popover ao mudar de modo
+            hideAllPopovers();
+
+            let html = `
+                <div class="mt-0">
+                    <h3 class="text-2xl font-bold text-blue-400 mb-3 text-center">Tabela de Jogos (Seletor de Placares)</h3>
+                    <p class="text-sm text-gray-400 mb-4 text-center">Edite, adicione e use o botão 'Ativar Placar' para carregar a partida no placar principal.</p>
+                    
+                    <div class="space-y-3">
+                        ${gameState.matchSchedule.map((match, index) => {
+                            const activeClass = (gameState.teamNameA === match.teamA && gameState.teamNameB === match.teamB) ? 'border-4 border-yellow-500' : 'border-2 border-gray-700';
+                            
+                            return `
+                                <div class="bg-gray-800 p-3 rounded-lg flex flex-col sm:flex-row justify-between items-center shadow-lg ${activeClass}">
+                                    <div class="flex items-center space-x-2 w-full sm:w-1/4 mb-2 sm:mb-0">
+                                        <span class="text-gray-300 font-mono text-base">#${match.id}</span>
+                                        <input type="text" value="${match.group}" onchange="handleMatchUpdate(${index}, 'group', this.value)" 
+                                               placeholder="Grupo" class="w-10 bg-transparent text-center text-sm font-semibold focus:outline-none focus:ring-1 focus:ring-blue-500 rounded-sm p-1"/>
+                                    </div>
+                                    <div class="flex flex-col sm:flex-row items-center flex-grow text-white w-full sm:w-auto">
+                                        <input type="text" value="${match.teamA}" onchange="handleMatchUpdate(${index}, 'teamA', this.value)" 
+                                               class="w-full sm:w-1/3 bg-transparent text-center font-bold focus:outline-none focus:ring-1 focus:ring-green-400 rounded-sm p-1" />
+                                        <span class="mx-2 text-xl font-extrabold text-red-400">X</span>
+                                         <input type="text" value="${match.teamB}" onchange="handleMatchUpdate(${index}, 'teamB', this.value)" 
+                                               class="w-full sm:w-1/3 bg-transparent text-center font-bold focus:outline-none focus:ring-1 focus:ring-green-400 rounded-sm p-1" />
+                                    </div>
+                                    <div class="ml-0 sm:ml-4 mt-3 sm:mt-0 w-full sm:w-auto">
+                                        <button onclick="tocarClique(); setScoreboardForMatch(${index})"
+                                                class="w-full p-2 text-sm rounded bg-blue-600 hover:bg-blue-700 text-white font-bold transition duration-150">
+                                            Ativar Placar
+                                        </button>
+                                    </div>
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+                    
+                    <div class="flex justify-center space-x-2 mt-4">
+                        <button onclick="tocarClique(); handleAddMatch()" class="p-2 text-sm rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 flex-1 transition duration-150">
+                            Adicionar Partida
+                        </button>
+                    </div>
+                </div>
+            `;
+            container.innerHTML = html;
+        }
+
+        // Funções para o Modal de Adicionar Partida
+        function showAddMatchModal() {
+            const modal = document.getElementById('addMatchModal');
+            // Limpa os campos e foca no primeiro
+            document.getElementById('newTeamA').value = '';
+            document.getElementById('newTeamB').value = '';
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            document.getElementById('newTeamA').focus();
+        }
+
+        function hideAddMatchModal() {
+            const modal = document.getElementById('addMatchModal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }
+
+        window.confirmAddMatch = function() {
+            const teamAInput = document.getElementById('newTeamA');
+            const teamBInput = document.getElementById('newTeamB');
+            let teamA = teamAInput.value.trim();
+            let teamB = teamBInput.value.trim();
+
+            // Usa nomes padrão se o usuário deixar em branco (para evitar alert, que é proibido)
+            if (!teamA) teamA = 'Time A (Novo)';
+            if (!teamB) teamB = 'Time B (Novo)';
+            
+            tocarClique();
+            hideAddMatchModal();
+            
+            // Adiciona a nova partida com os nomes fornecidos
+            const newId = gameState.matchSchedule.length + 1;
+            gameState.matchSchedule.push({ id: newId, teamA: teamA, teamB: teamB, group: 'Novo', winner: null });
+            saveGameState();
+        }
+
+        // Handler atualizado para abrir o modal
+        window.handleAddMatch = function() {
+             showAddMatchModal();
+        }
+
+
+        // Helper functions for advanced mode
+        window.setScoreboardForMatch = function(index) {
+            const match = gameState.matchSchedule[index];
+            if (match) {
+                // Sync the main scoreboard names with the selected match names
+                gameState.teamNameA = match.teamA;
+                gameState.teamNameB = match.teamB;
+                // Reseta os scores para a nova partida (boa prática)
+                gameState.scoreA = 0;
+                gameState.scoreB = 0; 
+                saveGameState(); 
+                updateScoreAndRosterUI(); // Força a atualização do placar
+            }
+        }
+
+        window.handleMatchUpdate = function(index, field, value) {
+            gameState.matchSchedule[index][field] = value;
+            saveGameState();
+        }
+
+        // Handler para mudar a contagem de cartões de um jogador específico
+        window.handlePlayerCardChange = function(team, index, type, delta) {
+            const rosterKey = `roster${team}`;
+            const player = gameState[rosterKey][index];
+
+            if (!player || !player.cards) {
+                console.error("Jogador ou status de cartão não encontrado.");
+                return;
+            }
+
+            if (type === 'reset') {
+                player.cards = { yellow: 0, yellow2: 0, red: 0 };
+            } else {
+                player.cards[type] = Math.max(0, player.cards[type] + delta);
+            }
+            
+            saveGameState();
+        }
+        
+        // Handler para mudar o número da camisa do jogador
+        window.handleJerseyNumberChange = function(team, index, value, isFromPopover) {
+            const rosterKey = `roster${team}`;
+            const num = parseInt(value, 10);
+            
+            // Garante que o número seja um valor válido (0-99) ou o índice se inválido
+            const newNum = isNaN(num) || num < 0 || num > 99 ? (index + 1) : num;
+            
+            gameState[rosterKey][index].jerseyNumber = newNum;
+            
+            // Força o save, que re-renderiza a lista (importante para o popover fechar ou atualizar o input)
+            saveGameState();
+        }
+
+        // Handler para mudar o nome do time
+        window.handleTeamNameChange = function(team, value) {
+            const nameKey = `teamName${team}`;
+            gameState[nameKey] = value.trim() || `Time ${team}`;
+            saveGameState();
+        }
+
+        // Handler para mudar o nome do jogador no Roster
+        window.handlePlayerNameChange = function(team, index, value) {
+            const rosterKey = `roster${team}`;
+            const player = gameState[rosterKey][index];
+
+            if (player) {
+                const teamName = team === 'A' ? gameState.teamNameA : gameState.teamNameB;
+                player.name = value.trim() || `Jogador ${index + 1} (${teamName})`;
+                // Força o save, que re-renderiza a lista e aplica a verificação de duplicidade
+                saveGameState(); 
+            }
+        }
+        
+        // Adiciona um novo jogador ao roster do time (função para o botão Adicionar)
+        window.handleAddPlayer = function(team) {
+            const rosterKey = `roster${team}`;
+            const maxRosterSize = MAX_ROSTER_SIZE_MAP[gameState.sport] || 10; 
+            
+            if (gameState[rosterKey].length < maxRosterSize) {
+                const newIndex = gameState[rosterKey].length + 1;
+                // NOVO: Usa o newIndex como default para jerseyNumber
+                const newPlayer = defaultPlayer(newIndex); 
+                const newRoster = [...gameState[rosterKey], newPlayer];
+                gameState[rosterKey] = newRoster;
+                saveGameState();
+            } else {
+                console.warn(`Limite máximo de ${maxRosterSize} jogadores atingido para ${gameState.sport}.`);
+            }
+        }
+
+        // Remove o último jogador do roster (função para o botão Remover)
+        window.handleRemovePlayer = function(team) {
+            const rosterKey = `roster${team}`;
+            
+            if (gameState[rosterKey].length > MIN_ROSTER_SLOTS) {
+                const newRoster = gameState[rosterKey].slice(0, -1); // Remove o último
+                gameState[rosterKey] = newRoster;
+                saveGameState();
+            } else {
+                console.warn(`Mínimo de ${MIN_ROSTER_SLOTS} jogadores deve ser mantido.`);
+            }
+        }
+
+        // Função que checa e mostra o vencedor
+        function checkWinner() {
+            if (estadoTimer === 'finalizado') {
+                const scoreA = gameState.scoreA;
+                const scoreB = gameState.scoreB;
+                const teamA = gameState.teamNameA;
+                const teamB = gameState.teamNameB;
+                
+                let winnerName = '';
+                let finalScore = `${scoreA} X ${scoreB}`;
+
+                if (scoreA > scoreB) {
+                    winnerName = teamA;
+                } else if (scoreB > scoreA) {
+                    winnerName = teamB;
+                } else {
+                    document.getElementById('estadoMensagem').textContent = 'FIM DE JOGO! 🤝 EMPATE';
+                    return; 
+                }
+                
+                showWinnerModal(winnerName, finalScore);
+            }
+        }
+
+        // Exibe o modal de vitória
+        function showWinnerModal(winnerName, finalScore) {
+            const modal = document.getElementById('winModal');
+            document.getElementById('winnerMessage').textContent = `${winnerName}!`;
+            document.getElementById('finalScoreMessage').textContent = `Placar Final: ${finalScore}`;
+
+            modal.classList.remove('hidden', 'flex-col');
+            modal.classList.add('flex');
+            tocarNotificacaoVitoria(); 
+        }
+
+        // Handler para mudar Gênero/Esporte e ajustar o Roster
+        window.handleSelectionChange = function() {
+            const seletorGenero = document.getElementById('seletorGenero');
+            const seletorEsporte = document.getElementById('seletorEsporte');
+            
+            const newGender = seletorGenero.value;
+            const newSport = seletorEsporte.value;
+
+            gameState.gender = newGender;
+            gameState.sport = newSport;
+            
+            const newMaxSize = MAX_ROSTER_SIZE_MAP[newSport] || 10; 
+            
+            // Ajusta o roster A (mantendo o status dos cartões)
+            if (gameState.rosterA.length > newMaxSize) {
+                gameState.rosterA = gameState.rosterA.slice(0, newMaxSize);
+            } else if (gameState.rosterA.length < MIN_ROSTER_SLOTS) {
+                while (gameState.rosterA.length < MIN_ROSTER_SLOTS) {
+                     gameState.rosterA.push(defaultPlayer(gameState.rosterA.length + 1));
+                }
+            }
+            // Ajusta o roster B (mantendo o status dos cartões)
+            if (gameState.rosterB.length > newMaxSize) {
+                gameState.rosterB = gameState.rosterB.slice(0, newMaxSize);
+            } else if (gameState.rosterB.length < MIN_ROSTER_SLOTS) {
+                while (gameState.rosterB.length < MIN_ROSTER_SLOTS) {
+                     gameState.rosterB.push(defaultPlayer(gameState.rosterB.length + 1));
+                }
+            }
+
+            document.getElementById('esporteInput').value = `${newSport} (${newGender})`;
+            saveGameState();
+        }
+
+        // Handler para mudar o placar
+        window.handleScoreChange = function(team, delta) {
+            const scoreKey = `score${team}`;
+            gameState[scoreKey] = Math.max(0, gameState[scoreKey] + delta);
+            saveGameState();
+            
+            if (estadoTimer === 'finalizado') {
+                 checkWinner();
+            }
+        }
+
+        // --- Variáveis de Estado (Cronômetro) ---
+        let tempoTotalSegundos = 600; // 10 minutos padrão
+        let tempoRestanteSegundos = tempoTotalSegundos;
+        let intervaloID = null;
+        let estadoTimer = 'pronto'; // 'pronto', 'rodando', 'pausado', 'finalizado', 'confirmacao'
+
+        // Referências DOM (Cronômetro)
+        const displayTempo = document.getElementById('displayTempo');
+        const minutosInput = document.getElementById('minutosInput');
+        const estadoMensagem = document.getElementById('estadoMensagem');
+        const btnIniciar = document.getElementById('btnIniciar');
+        const btnReiniciar = document.getElementById('btnReiniciar');
+
+        // --- Funções de Utilitário (Áudio e Formatação) ---
+
+        function formatarTempo(segundos) {
+            const min = Math.floor(segundos / 60);
+            const seg = segundos % 60;
+            return `${String(min).padStart(2, '0')}:${String(seg).padStart(2, '0')}`;
+        }
+        
+        // Atualiza a interface (Apenas Cronômetro/Botões)
+        function atualizarInterface() {
+            displayTempo.textContent = formatarTempo(tempoRestanteSegundos);
+            
+            if (estadoTimer === 'pronto') {
+                estadoMensagem.textContent = 'Pronto para iniciar.';
+                btnIniciar.textContent = 'Iniciar';
+                btnIniciar.classList.replace('bg-red-600', 'bg-green-600');
+                btnIniciar.classList.replace('bg-yellow-600', 'bg-green-600');
+                btnReiniciar.disabled = true;
+                minutosInput.disabled = false;
+            } else if (estadoTimer === 'confirmacao') {
+                // Mensagem de confirmação será preenchida por fetchAndDisplayTemperature
+                btnIniciar.textContent = 'Confirmar Início';
+                btnIniciar.classList.replace('bg-green-600', 'bg-red-600');
+                btnReiniciar.disabled = true;
+                minutosInput.disabled = true;
+            } else if (estadoTimer === 'rodando') {
+                // Cálculo da Previsão de Término
+                const agora = new Date();
+                const tempoFimMs = agora.getTime() + tempoRestanteSegundos * 1000;
+                const tempoFim = new Date(tempoFimMs);
+                const horaFim = String(tempoFim.getHours()).padStart(2, '0');
+                const minutoFim = String(tempoFim.getMinutes()).padStart(2, '0');
+                
+                estadoMensagem.textContent = `Previsão de término: ${horaFim}:${minutoFim}`;
+                btnIniciar.textContent = 'Pausar';
+                btnIniciar.classList.replace('bg-green-600', 'bg-yellow-600');
+                btnIniciar.classList.replace('bg-red-600', 'bg-yellow-600');
+                btnReiniciar.disabled = false;
+                minutosInput.disabled = true;
+            } else if (estadoTimer === 'pausado') {
+                estadoMensagem.textContent = 'PAUSADO (Pressione para continuar)';
+                btnIniciar.textContent = 'Continuar';
+                btnIniciar.classList.replace('bg-green-600', 'bg-yellow-600');
+                btnIniciar.classList.replace('bg-red-600', 'bg-yellow-600');
+                btnReiniciar.disabled = false;
+                minutosInput.disabled = true;
+            } else if (estadoTimer === 'finalizado') {
+                estadoMensagem.textContent = 'FIM DE JOGO! ⚽';
+                btnIniciar.textContent = 'Iniciar';
+                btnIniciar.classList.replace('bg-yellow-600', 'bg-green-600');
+                btnIniciar.classList.replace('bg-red-600', 'bg-green-600');
+                btnReiniciar.disabled = false;
+                minutosInput.disabled = false;
+            }
+        }
+        
+        window.tocarClique = function() {
+            try {
+                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                const oscillator = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+                oscillator.type = 'square';
+                oscillator.frequency.setValueAtTime(880, audioContext.currentTime);
+                gainNode.gain.setValueAtTime(0, audioContext.currentTime);
+                gainNode.gain.linearRampToValueAtTime(0.1, audioContext.currentTime + 0.001); 
+                gainNode.gain.exponentialRampToValueAtTime(0.0001, audioContext.currentTime + 0.05);
+                oscillator.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+                oscillator.start(audioContext.currentTime);
+                oscillator.stop(audioContext.currentTime + 0.05);
+            } catch (e) {
+                console.warn("Falha ao tocar som de clique.");
+            }
+        }
+
+        function tocarNotificacao() {
+            try {
+                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                const oscillator = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+                oscillator.type = 'sine';
+                oscillator.frequency.setValueAtTime(440, audioContext.currentTime);
+                gainNode.gain.setValueAtTime(0, audioContext.currentTime);
+                gainNode.gain.linearRampToValueAtTime(0.5, audioContext.currentTime + 0.01);
+                gainNode.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + 1);
+                oscillator.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+                oscillator.start();
+                oscillator.stop(audioContext.currentTime + 1);
+            } catch (e) {
+                console.warn("API de áudio não suportada ou falha ao tocar som.", e);
+            }
+        }
+
+        function tocarNotificacaoVitoria() {
+            try {
+                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                const now = audioContext.currentTime;
+
+                // Sequência de notas para celebração
+                const notes = [440, 554, 659, 880]; // A4, C#5, E5, A5
+                
+                notes.forEach((freq, index) => {
+                    const oscillator = audioContext.createOscillator();
+                    const gainNode = audioContext.createGain();
+                    
+                    oscillator.connect(gainNode);
+                    gainNode.connect(audioContext.destination);
+                    
+                    oscillator.type = 'triangle';
+                    oscillator.frequency.setValueAtTime(freq, now + (index * 0.1));
+                    
+                    gainNode.gain.setValueAtTime(0, now + (index * 0.1));
+                    gainNode.gain.linearRampToValueAtTime(0.2, now + (index * 0.1) + 0.05);
+                    gainNode.gain.linearRampToValueAtTime(0, now + (index * 0.1) + 0.2);
+
+                    oscillator.start(now + (index * 0.1));
+                    oscillator.stop(now + (index * 0.1) + 0.2);
+                });
+            } catch (e) {
+                console.warn("Falha ao tocar som de vitória.");
+            }
+        }
+
+
+        // --- Funções do Cronômetro ---
+
+        window.definirTempoInicial = function() {
+            const minutos = parseInt(minutosInput.value, 10);
+            if (isNaN(minutos) || minutos <= 0) {
+                minutosInput.value = Math.floor(tempoTotalSegundos / 60);
+                return;
+            }
+            if (estadoTimer !== 'pronto' && estadoTimer !== 'finalizado' && estadoTimer !== 'confirmacao') {
+                return;
+            }
+            tempoTotalSegundos = minutos * 60;
+            tempoRestanteSegundos = tempoTotalSegundos;
+            if (estadoTimer === 'finalizado' || estadoTimer === 'confirmacao') {
+                estadoTimer = 'pronto'; // Volta ao pronto se mudar o tempo
+            }
+            atualizarInterface();
+        }
+
+        window.predefinirTempo = function(minutos) {
+             if (estadoTimer !== 'pronto' && estadoTimer !== 'finalizado' && estadoTimer !== 'confirmacao') {
+                return;
+            }
+            minutosInput.value = minutos;
+            definirTempoInicial();
+        }
+
+        function contagemRegressiva() {
+            if (tempoRestanteSegundos <= 0) {
+                clearInterval(intervaloID);
+                intervaloID = null;
+                estadoTimer = 'finalizado';
+                tocarNotificacao(); 
+                checkWinner(); 
+            } else {
+                tempoRestanteSegundos--;
+            }
+            atualizarInterface();
+        }
+
+        // Função para buscar a temperatura
+        async function fetchAndDisplayTemperature() {
+            const temperaturaQueryPT = "temperatura atual São Paulo";
+            const temperaturaQueryEN = "current temperature São Paulo";
+            const resultadoElement = document.getElementById('estadoMensagem');
+            resultadoElement.innerHTML = '<span class="text-xl font-bold text-red-400">Com certeza?</span><br><span class="text-sm text-gray-300">Buscando temperatura...</span>';
+
+            try {
+                const response = await google_search.search({queries:[temperaturaQueryPT, temperaturaQueryEN]}); 
+                
+                const snippet = response.results[0]?.snippet;
+                // Tenta extrair a temperatura (Ex: 25°C) ou usa o snippet completo
+                const tempText = snippet ? snippet.match(/(\d+[\s\S]?°C)/i)?.[0] || snippet : 'N/A';
+                
+                // Só atualiza se o estado ainda for 'confirmacao'
+                if (estadoTimer === 'confirmacao') {
+                    estadoMensagem.innerHTML = `
+                        <span class="text-xl font-bold text-red-400">Com certeza?</span>
+                        <br>
+                        <span class="text-sm text-gray-300">Temperatura SP: <span class="text-yellow-300 font-semibold">${tempText}</span></span>
+                    `;
+                }
+
+            } catch (e) {
+                console.error("Erro ao buscar temperatura:", e);
+                if (estadoTimer === 'confirmacao') {
+                     estadoMensagem.innerHTML = `
+                        <span class="text-xl font-bold text-red-400">Com certeza?</span>
+                        <br>
+                        <span class="text-sm text-gray-300">Temperatura: Não disponível.</span>
+                    `;
+                }
+            }
+        }
+
+        // Lógica de iniciação com confirmação
+        window.iniciarOuPausar = async function() {
+            if (estadoTimer === 'rodando') {
+                clearInterval(intervaloID);
+                intervaloID = null;
+                estadoTimer = 'pausado';
+            } else if (estadoTimer === 'pausado') {
+                estadoTimer = 'rodando';
+                intervaloID = setInterval(contagemRegressiva, 1000);
+            } else if (estadoTimer === 'confirmacao') {
+                // SEGUNDO CLIQUE: Confirma e Inicia o Timer
+                if (tempoRestanteSegundos === 0) {
+                    tempoRestanteSegundos = tempoTotalSegundos; 
+                }
+                estadoTimer = 'rodando';
+                intervaloID = setInterval(contagemRegressiva, 1000);
+                document.getElementById('winModal').classList.add('hidden'); 
+            } else if (estadoTimer === 'pronto' || estadoTimer === 'finalizado') {
+                // PRIMEIRO CLIQUE: Entra no estado de Confirmação
+                estadoTimer = 'confirmacao';
+                document.getElementById('winModal').classList.add('hidden');
+                atualizarInterface(); 
+                await fetchAndDisplayTemperature(); // Busca a temperatura
+                return; // Não atualiza a interface de novo, pois a busca o fará
+            }
+            atualizarInterface();
+        }
+
+        window.reiniciar = function() {
+            clearInterval(intervaloID);
+            intervaloID = null;
+            tempoRestanteSegundos = tempoTotalSegundos;
+            estadoTimer = 'pronto';
+            document.getElementById('winModal').classList.add('hidden'); // Esconde o modal
+            atualizarInterface();
+        }
+
+        // --- Funções Gemini API (Inalteradas, mas mantidas) ---
+        const apiKey = ""; 
+        const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+
+        async function fetchGeminiStructuredResponse(userQuery, systemPrompt, maxRetries = 3) {
+            const payload = {
+                contents: [{ parts: [{ text: userQuery }] }],
+                systemInstruction: { parts: [{ text: systemPrompt }] },
+                generationConfig: {
+                    responseMimeType: "application/json",
+                    responseSchema: {
+                        type: "OBJECT",
+                        properties: {
+                            "slogan": { "type": "STRING", "description": "Um grito de guerra ou slogan motivacional." },
+                            "dicaEstrategia": { "type": "STRING", "description": "Uma dica de estratégia curta e útil." }
+                        },
+                        "propertyOrdering": ["slogan", "dicaEstrategia"]
+                    }
+                }
+            };
+
+            for (let attempt = 0; attempt < maxRetries; attempt++) {
+                try {
+                    const response = await fetch(geminiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+
+                    const result = await response.json();
+                    const candidate = result.candidates?.[0];
+
+                    if (candidate && candidate.content?.parts?.[0]?.text) {
+                        return { text: candidate.content.parts[0].text, sources: [] };
+                    } else {
+                        throw new Error("Resposta da Gemini API incompleta ou vazia.");
+                    }
+                } catch (error) {
+                    if (attempt < maxRetries - 1) {
+                        const delay = Math.pow(2, attempt) * 1000;
+                        await new Promise(resolve => setTimeout(resolve, delay));
+                    } else {
+                        throw error;
+                    }
+                }
+            }
+        }
+
+        window.gerarConteudoInterclasse = async function() {
+            const inputElement = document.getElementById('esporteInput');
+            const resultadoElement = document.getElementById('resultadoGemini');
+            const btnGerar = document.getElementById('btnGerar');
+            const query = inputElement.value.trim() || `${gameState.sport} (${gameState.gender})`;
+
+            if (!query) {
+                resultadoElement.innerHTML = '<span class="text-red-400">Por favor, insira o esporte ou nome do time.</span>';
+                return;
+            }
+
+            resultadoElement.innerHTML = 'Gerando ideias... <span class="animate-pulse-fast">🧠</span>';
+            btnGerar.disabled = true;
+
+            const systemPrompt = `Você é um mentor esportivo motivacional e criativo para jogos escolares (interclasse). Sua tarefa é gerar um grito de guerra/slogan e uma dica de estratégia específica e motivacional para o esporte ou time fornecido. O resultado deve ser estritamente em JSON, seguindo o esquema fornecido.`;
+            const userQuery = `Gere um slogan criativo e uma dica de estratégia (máximo 2 frases) para o contexto: "${query}".`;
+
+            try {
+                const response = await fetchGeminiStructuredResponse(userQuery, systemPrompt);
+                
+                const jsonText = response.text.trim();
+                const result = JSON.parse(jsonText);
+
+                resultadoElement.innerHTML = `
+                    <p class="text-purple-400 font-bold text-lg mb-2">📣 Grito de Guerra:</p>
+                    <p class="text-white mb-4 italic text-xl font-semibold">"${result.slogan}"</p>
+                    <p class="text-purple-400 font-bold text-lg mb-2">💡 Dica Rápida de Estratégia:</p>
+                    <p class="text-white">${result.dicaEstrategia}</p>
+                `;
+
+            } catch (error) {
+                console.error("Gemini API Error (Estratégia):", error);
+                resultadoElement.innerHTML = '<span class="text-red-400">Erro ao comunicar com a IA. Tente novamente. Verifique o console.</span>';
+            } finally {
+                btnGerar.disabled = false;
+            }
+        }
+        
+        // --- Inicialização Principal ---
+        document.addEventListener('DOMContentLoaded', () => {
+            minutosInput.value = Math.floor(tempoTotalSegundos / 60);
+            initializeFirebase();
+            document.getElementById('esporteInput').value = `${gameState.sport} (${gameState.gender})`;
+            // A chamada updateScoreAndRosterUI() agora é feita pelo listener do Firestore
+        });
+
+    </script>
+</body>
+</html>
