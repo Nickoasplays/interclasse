@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cronômetro Interclasse</title>
+    <title>Cronômetro Interclasse (Offline)</title>
     <!-- Carrega Tailwind CSS para estilização rápida e responsiva -->
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
@@ -215,19 +215,14 @@
                 <span class="text-green-400">📊</span>
             </h2>
 
-            <!-- Exibição do User ID para Colaboração (TEXTO INICIAL ALTERADO PARA "CARREGANDO...") -->
-            <div class="text-xs text-center text-gray-400 mb-4 p-2 bg-gray-900 rounded-lg">
-                Seu ID de Usuário (compartilhe para sincronizar): <span id="currentUserId" class="font-mono text-yellow-400 break-all">Carregando...</span>
-            </div>
+            <!-- REMOVIDO: Exibição do User ID para Colaboração (O app é offline) -->
 
             <!-- Seletor de Modo de Placar (Simples/Avançado) -->
             <div class="flex justify-center space-x-4 mb-6">
-                <!-- BOTÃO RENOMEADO: PLACAR -->
                 <button id="btnSimples" onclick="tocarClique(); setScoreMode('Simples')"
                         class="timer-button p-3 text-lg rounded-lg text-white bg-blue-600 hover:bg-blue-700 active:bg-blue-800 flex-1">
                     Placar
                 </button>
-                <!-- BOTÃO RENOMEADO: SELETOR DE PLACARES -->
                 <button id="btnAvancado" onclick="tocarClique(); setScoreMode('Avançado')"
                         class="timer-button p-3 text-lg rounded-lg text-white bg-gray-600 hover:bg-gray-700 active:bg-gray-800 flex-1">
                     Seletor de Placares
@@ -291,7 +286,7 @@
             </div>
         </div>
         
-        <!-- Seção de Autoria e Doação (NOVO) -->
+        <!-- Seção de Autoria e Doação -->
         <div class="mt-8 pt-6 border-t border-gray-700 text-center">
             <h3 class="text-xl font-bold text-white mb-3">💖 Apoie Nickoasplays!</h3>
             <p class="text-gray-400 mb-4">Gostou do aplicativo? Considere fazer uma doação via Pix:</p>
@@ -319,7 +314,7 @@
             </div>
         </div>
 
-        <!-- Modal Personalizado para Adicionar Partida (NOVO) -->
+        <!-- Modal Personalizado para Adicionar Partida -->
         <div id="addMatchModal" class="fixed inset-0 bg-black bg-opacity-70 backdrop-blur-sm hidden items-center justify-center p-4 z-50 transition duration-300">
             <div class="bg-gray-700 p-6 rounded-xl shadow-2xl relative max-w-sm w-full border-4 border-blue-500">
                 <h3 class="text-2xl font-extrabold text-white mb-4 text-center">Adicionar Nova Partida</h3>
@@ -350,27 +345,11 @@
     <!-- Modal de Cobertura para fechar o Popover ao clicar fora -->
     <div id="popoverCover" class="fixed inset-0 z-10 hidden" onclick="hideAllPopovers()"></div>
 
-    <script type="module">
-        // --- Firebase Imports e Configuração ---
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-        import { setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+    <script type="text/javascript">
         
-        // Ativa o logging de debug para o Firestore (Obrigatório)
-        setLogLevel('debug'); 
-
-        // Variáveis globais do ambiente (Obrigatório usar)
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
-        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-        
-        let db;
-        let auth;
-        let userId = null;
-        let activePopoverId = null; // Rastreia o popover aberto
-
         // --- Configuração de Tamanho do Roster ---
+        const LOCAL_STORAGE_KEY = 'interclasseGameState'; // Chave para o localStorage
+        
         const MAX_ROSTER_SIZE_MAP = {
             Futsal: 10,     
             Volei: 10,      
@@ -383,128 +362,74 @@
         // Objeto de jogador padrão (para inicialização)
         const defaultPlayer = (i) => ({ 
             name: `Jogador ${i}`, 
-            jerseyNumber: i, // Adicionado número da camisa
+            jerseyNumber: i,
             cards: { yellow: 0, yellow2: 0, red: 0 } 
         });
-
-        // Estado do Jogo (Sincronizado via Firestore)
-        let gameState = {
+        
+        // Estado inicial padrão do Jogo
+        const initialGameState = {
             gender: 'Feminino',
             sport: 'Futsal',
-            scoreMode: 'Simples', // 'Simples' ou 'Avançado'
+            scoreMode: 'Simples', 
             scoreA: 0,
             scoreB: 0,
             teamNameA: 'Time A',
             teamNameB: 'Time B',
             rosterA: Array(INITIAL_ROSTER_SLOTS).fill(0).map((_, i) => defaultPlayer(i + 1)),
             rosterB: Array(INITIAL_ROSTER_SLOTS).fill(0).map((_, i) => defaultPlayer(i + 1)),
-            // Dados para o Modo Avançado (Tabela de Jogos) - Inicializado Vazio
             matchSchedule: [], 
         };
-        
-        // Função para obter o caminho do documento no Firestore (Privado por padrão)
-        function getFirestorePath() {
-            // Caminho: /artifacts/{appId}/users/{userId}/interclasse_data/state
-            return doc(db, 'artifacts', appId, 'users', userId, 'interclasse_data', 'state');
-        }
 
-        // Função para inicializar Firebase e autenticação
-        async function initializeFirebase() {
-            if (!firebaseConfig) {
-                console.error("Firebase config is missing. Cannot initialize Firestore.");
-                return;
-            }
+        let gameState = { ...initialGameState };
+        let activePopoverId = null; // Rastreia o popover aberto
 
-            const app = initializeApp(firebaseConfig);
-            db = getFirestore(app);
-            auth = getAuth(app);
-            
+        // --- Funções de Armazenamento Local (localStorage) ---
+
+        // Função para salvar o estado no localStorage
+        function saveStateToLocalStorage() {
             try {
-                if (initialAuthToken) {
-                    await signInWithCustomToken(auth, initialAuthToken);
-                } else {
-                    await signInAnonymously(auth);
-                }
-            } catch (error) {
-                console.error("Firebase Auth error, falling back to random UUID:", error);
-                userId = crypto.randomUUID();
-                document.getElementById('currentUserId').textContent = userId + " (Anônimo)";
-                setupFirestoreListener();
-                return;
-            }
-
-            onAuthStateChanged(auth, (user) => {
-                if (user) {
-                    userId = user.uid;
-                    document.getElementById('currentUserId').textContent = userId;
-                    setupFirestoreListener();
-                } else {
-                    userId = crypto.randomUUID();
-                    document.getElementById('currentUserId').textContent = userId + " (Anônimo)";
-                    setupFirestoreListener();
-                }
-            });
-        }
-        
-        // Função para salvar o estado do jogo no Firestore
-        async function saveGameState() {
-            if (!db || !userId) return;
-            try {
-                // Ao salvar, forçamos o re-render chamando updateScoreAndRosterUI
-                await setDoc(getFirestorePath(), gameState);
-            } catch (e) {
-                console.error("Error saving game state:", e);
-            }
-        }
-        
-        // Função para escutar atualizações em tempo real do Firestore
-        function setupFirestoreListener() {
-            if (!db || !userId) return;
-            
-            onSnapshot(getFirestorePath(), (docSnapshot) => {
-                let shouldSave = false;
-                if (docSnapshot.exists()) {
-                    const loadedState = docSnapshot.data();
-                    
-                    // Tratamento de migração/fallback para garantir que o roster tenha o jerseyNumber
-                    if (Array.isArray(loadedState.rosterA) && loadedState.rosterA.length > 0) {
-                        loadedState.rosterA.forEach((player, i) => {
-                            if (typeof player.jerseyNumber === 'undefined') {
-                                player.jerseyNumber = i + 1; // Atribui valor padrão se não existir
-                                shouldSave = true;
-                            }
-                        });
-                        loadedState.rosterB.forEach((player, i) => {
-                            if (typeof player.jerseyNumber === 'undefined') {
-                                player.jerseyNumber = i + 1;
-                                shouldSave = true;
-                            }
-                        });
-                    }
-                    
-                    // Garante que o matchSchedule exista
-                    if (!loadedState.matchSchedule) {
-                        loadedState.matchSchedule = gameState.matchSchedule;
-                    }
-
-                    gameState = { ...gameState, ...loadedState };
-                } else {
-                    shouldSave = true; // Se o documento não existir, salva o estado inicial
-                }
-                
-                // Garante que os seletores reflitam o estado
-                const seletorEsporte = document.getElementById('seletorEsporte');
-                const seletorGenero = document.getElementById('seletorGenero');
-                if (seletorEsporte && gameState.sport) seletorEsporte.value = gameState.sport;
-                if (seletorGenero && gameState.gender) seletorGenero.value = gameState.gender;
-
-                // Atualiza a UI sempre que o estado é carregado ou mudado
+                localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(gameState));
+                // Forçamos o re-render após salvar o estado localmente
                 updateScoreAndRosterUI(); 
+            } catch (e) {
+                console.error("Erro ao salvar o estado localmente:", e);
+            }
+        }
+        
+        // Função para carregar o estado do localStorage
+        function loadStateFromLocalStorage() {
+            try {
+                const serializedState = localStorage.getItem(LOCAL_STORAGE_KEY);
+                if (serializedState === null) {
+                    // Se não houver dados, retorna o estado inicial padrão
+                    return initialGameState;
+                }
+                const loadedState = JSON.parse(serializedState);
                 
-                if (shouldSave) saveGameState();
-            }, (error) => {
-                console.error("Firestore listen error:", error);
-            });
+                // Trata migração/fallback para garantir que o matchSchedule exista
+                if (!loadedState.matchSchedule) {
+                    loadedState.matchSchedule = initialGameState.matchSchedule;
+                }
+                
+                // Trata migração/fallback para garantir que o roster tenha o jerseyNumber
+                if (Array.isArray(loadedState.rosterA) && loadedState.rosterA.length > 0) {
+                    loadedState.rosterA.forEach((player, i) => {
+                        if (typeof player.jerseyNumber === 'undefined') {
+                            player.jerseyNumber = i + 1; // Atribui valor padrão se não existir
+                        }
+                    });
+                    loadedState.rosterB.forEach((player, i) => {
+                        if (typeof player.jerseyNumber === 'undefined') {
+                            player.jerseyNumber = i + 1;
+                        }
+                    });
+                }
+                
+                return loadedState;
+            } catch (e) {
+                console.error("Erro ao carregar o estado localmente. Usando estado padrão.", e);
+                return initialGameState;
+            }
         }
 
         // --- Funções de Estado e UI ---
@@ -517,12 +442,17 @@
             document.getElementById('timeNameA').value = gameState.teamNameA;
             document.getElementById('timeNameB').value = gameState.teamNameB;
             
-            // 2. Atualiza botões Simples/Avançado (apenas visual)
+            // 2. Garante que os seletores reflitam o estado (Importante ao carregar)
+            const seletorEsporte = document.getElementById('seletorEsporte');
+            const seletorGenero = document.getElementById('seletorGenero');
+            if (seletorEsporte && gameState.sport) seletorEsporte.value = gameState.sport;
+            if (seletorGenero && gameState.gender) seletorGenero.value = gameState.gender;
+            
+            // 3. Atualiza botões Simples/Avançado (apenas visual)
             const btnSimples = document.getElementById('btnSimples');
             const btnAvancado = document.getElementById('btnAvancado');
             const scoreControls = document.getElementById('scoreControls');
             const flexibleContentArea = document.getElementById('flexibleContentArea');
-            // Referências aos botões de score 
             const scoreButtonsA = document.getElementById('scoreButtonsA');
             const scoreButtonsB = document.getElementById('scoreButtonsB');
 
@@ -548,7 +478,6 @@
                     btnSimples.classList.replace('hover:bg-blue-700', 'hover:bg-gray-700');
 
                     // Desabilita visualmente o placar, mas permite a edição do nome dos times.
-                    // Apenas os botões de + / - são bloqueados.
                     scoreControls.classList.add('opacity-50'); 
                     scoreButtonsA.classList.add('pointer-events-none', 'opacity-50');
                     scoreButtonsB.classList.add('pointer-events-none', 'opacity-50');
@@ -561,7 +490,7 @@
         window.setScoreMode = function(mode) {
             if (gameState.scoreMode !== mode) {
                 gameState.scoreMode = mode;
-                saveGameState();
+                saveStateToLocalStorage();
             }
         }
         
@@ -579,14 +508,11 @@
 
         // Renderiza a lista de inputs do Roster (Modo Simples)
         function renderSimpleRoster(container) {
-            // Feche o popover ao re-renderizar
             hideAllPopovers();
 
-            // Renderiza títulos do Roster
             const rosterTitleA = `Jogadores - ${gameState.teamNameA}`;
             const rosterTitleB = `Jogadores - ${gameState.teamNameB}`;
 
-            // Cria a estrutura HTML
             container.innerHTML = `
                 <div class="grid grid-cols-2 gap-4 text-sm mt-0">
                     <div class="bg-gray-700 p-3 rounded-lg">
@@ -600,48 +526,47 @@
                 </div>
             `;
             
-            // Injeta as listas de jogadores nas sub-áreas
             renderRosterList('A', gameState.rosterA, document.getElementById('rosterListA'));
             renderRosterList('B', gameState.rosterB, document.getElementById('rosterListB'));
         }
         
-        // Função para abrir o popover e fechar os outros (RENOMEADA)
+        // Função para abrir o popover e fechar os outros
         window.toggleCardPopover = function(team, index, event) {
             tocarClique();
-            event.stopPropagation(); // Previne que o clique feche imediatamente
+            event.stopPropagation();
             
             const popoverId = `cardPopover${team}${index}`;
             const popover = document.getElementById(popoverId);
 
             if (activePopoverId === popoverId) {
-                hideAllPopovers(); // Fecha o popover ativo
+                hideAllPopovers();
             } else {
-                hideAllPopovers(); // Fecha qualquer outro popover
+                hideAllPopovers();
                 popover.classList.add('card-popover-open');
                 activePopoverId = popoverId;
                 document.getElementById('popoverCover').classList.remove('hidden');
             }
         }
         
-        // NOVO: Função para contar nomes duplicados em um roster
+        // Função para contar nomes duplicados em um roster
         function findDuplicateNames(roster) {
             const nameCounts = {};
             roster.forEach(player => {
                 const name = player.name.trim().toLowerCase();
-                if (name) { // Ignora nomes vazios/padrão
+                if (name) { 
                     nameCounts[name] = (nameCounts[name] || 0) + 1;
                 }
             });
             return nameCounts;
         }
 
-        // NOVO: Função para exibir bolhas de cartões pequenos
+        // Função para exibir bolhas de cartões pequenos
         function displayPlayerSmallIndicator(cards) {
             let html = '<div class="card-indicator">';
             if (cards.yellow > 0 || cards.yellow2 > 0) {
                 html += '<span class="yellow-dot" title="Cartão Amarelo"></span>';
             }
-            if (cards.red > 0 || cards.yellow2 > 0) { // Mostra vermelho se houver vermelho direto ou 2º amarelo
+            if (cards.red > 0 || cards.yellow2 > 0) { 
                  html += '<span class="red-dot" title="Cartão Vermelho/Expulsão"></span>';
             }
             html += '</div>';
@@ -655,23 +580,18 @@
             const isMax = rosterArray.length >= maxRosterSize;
             const isMin = rosterArray.length <= MIN_ROSTER_SLOTS;
             
-            // NOVO: Conta os nomes duplicados para este time
             const nameCounts = findDuplicateNames(rosterArray);
 
             const inputs = rosterArray.map((player, index) => {
                 const cards = player.cards;
                 
-                // NOVO: Gera os indicadores de cartão no formato de bolhas
                 const cardIndicator = displayPlayerSmallIndicator(cards);
                 
                 const popoverId = `cardPopover${team}${index}`;
                 
-                // NOVO: Checa se o nome atual é duplicado (case-insensitive e trim)
                 const isDuplicate = nameCounts[player.name.trim().toLowerCase()] > 1; 
-                // NOVO: Classe para destacar o nome
                 const nameClass = isDuplicate ? 'duplicate-name' : ''; 
 
-                // HTML para o Popover de Cartões (Visível ao clicar no número da camisa)
                 const cardPopover = `
                     <div id="${popoverId}" class="card-popover absolute left-1/2 transform -translate-x-1/2 top-full mt-1 z-20 
                                   bg-gray-700 p-3 rounded-xl shadow-2xl hidden w-56 sm:w-64 border-2 border-red-500"
@@ -756,7 +676,6 @@
 
         // Renderiza a lista de partidas (Modo Avançado)
         function renderAdvancedMatchTracker(container) {
-            // Feche o popover ao mudar de modo
             hideAllPopovers();
 
             let html = `
@@ -806,7 +725,6 @@
         // Funções para o Modal de Adicionar Partida
         function showAddMatchModal() {
             const modal = document.getElementById('addMatchModal');
-            // Limpa os campos e foca no primeiro
             document.getElementById('newTeamA').value = '';
             document.getElementById('newTeamB').value = '';
             modal.classList.remove('hidden');
@@ -826,43 +744,36 @@
             let teamA = teamAInput.value.trim();
             let teamB = teamBInput.value.trim();
 
-            // Usa nomes padrão se o usuário deixar em branco (para evitar alert, que é proibido)
             if (!teamA) teamA = 'Time A (Novo)';
             if (!teamB) teamB = 'Time B (Novo)';
             
             tocarClique();
             hideAddMatchModal();
             
-            // Adiciona a nova partida com os nomes fornecidos
+            // Adiciona a nova partida
             const newId = gameState.matchSchedule.length + 1;
             gameState.matchSchedule.push({ id: newId, teamA: teamA, teamB: teamB, group: 'Novo', winner: null });
-            saveGameState();
+            saveStateToLocalStorage();
         }
 
-        // Handler atualizado para abrir o modal
         window.handleAddMatch = function() {
              showAddMatchModal();
         }
 
-
-        // Helper functions for advanced mode
         window.setScoreboardForMatch = function(index) {
             const match = gameState.matchSchedule[index];
             if (match) {
-                // Sync the main scoreboard names with the selected match names
                 gameState.teamNameA = match.teamA;
                 gameState.teamNameB = match.teamB;
-                // Reseta os scores para a nova partida (boa prática)
                 gameState.scoreA = 0;
                 gameState.scoreB = 0; 
-                saveGameState(); 
-                updateScoreAndRosterUI(); // Força a atualização do placar
+                saveStateToLocalStorage(); 
             }
         }
 
         window.handleMatchUpdate = function(index, field, value) {
             gameState.matchSchedule[index][field] = value;
-            saveGameState();
+            saveStateToLocalStorage();
         }
 
         // Handler para mudar a contagem de cartões de um jogador específico
@@ -881,7 +792,7 @@
                 player.cards[type] = Math.max(0, player.cards[type] + delta);
             }
             
-            saveGameState();
+            saveStateToLocalStorage();
         }
         
         // Handler para mudar o número da camisa do jogador
@@ -889,20 +800,18 @@
             const rosterKey = `roster${team}`;
             const num = parseInt(value, 10);
             
-            // Garante que o número seja um valor válido (0-99) ou o índice se inválido
             const newNum = isNaN(num) || num < 0 || num > 99 ? (index + 1) : num;
             
             gameState[rosterKey][index].jerseyNumber = newNum;
             
-            // Força o save, que re-renderiza a lista (importante para o popover fechar ou atualizar o input)
-            saveGameState();
+            saveStateToLocalStorage();
         }
 
         // Handler para mudar o nome do time
         window.handleTeamNameChange = function(team, value) {
             const nameKey = `teamName${team}`;
             gameState[nameKey] = value.trim() || `Time ${team}`;
-            saveGameState();
+            saveStateToLocalStorage();
         }
 
         // Handler para mudar o nome do jogador no Roster
@@ -913,36 +822,34 @@
             if (player) {
                 const teamName = team === 'A' ? gameState.teamNameA : gameState.teamNameB;
                 player.name = value.trim() || `Jogador ${index + 1} (${teamName})`;
-                // Força o save, que re-renderiza a lista e aplica a verificação de duplicidade
-                saveGameState(); 
+                saveStateToLocalStorage(); 
             }
         }
         
-        // Adiciona um novo jogador ao roster do time (função para o botão Adicionar)
+        // Adiciona um novo jogador ao roster do time
         window.handleAddPlayer = function(team) {
             const rosterKey = `roster${team}`;
             const maxRosterSize = MAX_ROSTER_SIZE_MAP[gameState.sport] || 10; 
             
             if (gameState[rosterKey].length < maxRosterSize) {
                 const newIndex = gameState[rosterKey].length + 1;
-                // NOVO: Usa o newIndex como default para jerseyNumber
                 const newPlayer = defaultPlayer(newIndex); 
                 const newRoster = [...gameState[rosterKey], newPlayer];
                 gameState[rosterKey] = newRoster;
-                saveGameState();
+                saveStateToLocalStorage();
             } else {
                 console.warn(`Limite máximo de ${maxRosterSize} jogadores atingido para ${gameState.sport}.`);
             }
         }
 
-        // Remove o último jogador do roster (função para o botão Remover)
+        // Remove o último jogador do roster
         window.handleRemovePlayer = function(team) {
             const rosterKey = `roster${team}`;
             
             if (gameState[rosterKey].length > MIN_ROSTER_SLOTS) {
-                const newRoster = gameState[rosterKey].slice(0, -1); // Remove o último
+                const newRoster = gameState[rosterKey].slice(0, -1);
                 gameState[rosterKey] = newRoster;
-                saveGameState();
+                saveStateToLocalStorage();
             } else {
                 console.warn(`Mínimo de ${MIN_ROSTER_SLOTS} jogadores deve ser mantido.`);
             }
@@ -1014,14 +921,14 @@
             }
 
             document.getElementById('esporteInput').value = `${newSport} (${newGender})`;
-            saveGameState();
+            saveStateToLocalStorage();
         }
 
         // Handler para mudar o placar
         window.handleScoreChange = function(team, delta) {
             const scoreKey = `score${team}`;
             gameState[scoreKey] = Math.max(0, gameState[scoreKey] + delta);
-            saveGameState();
+            saveStateToLocalStorage();
             
             if (estadoTimer === 'finalizado') {
                  checkWinner();
@@ -1061,7 +968,7 @@
                 btnReiniciar.disabled = true;
                 minutosInput.disabled = false;
             } else if (estadoTimer === 'confirmacao') {
-                // Mensagem de confirmação será preenchida por fetchAndDisplayTemperature
+                // Mensagem de confirmação/temperatura
                 btnIniciar.textContent = 'Confirmar Início';
                 btnIniciar.classList.replace('bg-green-600', 'bg-red-600');
                 btnReiniciar.disabled = true;
@@ -1140,7 +1047,6 @@
                 const audioContext = new (window.AudioContext || window.webkitAudioContext)();
                 const now = audioContext.currentTime;
 
-                // Sequência de notas para celebração
                 const notes = [440, 554, 659, 880]; // A4, C#5, E5, A5
                 
                 notes.forEach((freq, index) => {
@@ -1180,7 +1086,7 @@
             tempoTotalSegundos = minutos * 60;
             tempoRestanteSegundos = tempoTotalSegundos;
             if (estadoTimer === 'finalizado' || estadoTimer === 'confirmacao') {
-                estadoTimer = 'pronto'; // Volta ao pronto se mudar o tempo
+                estadoTimer = 'pronto'; 
             }
             atualizarInterface();
         }
@@ -1214,13 +1120,12 @@
             resultadoElement.innerHTML = '<span class="text-xl font-bold text-red-400">Com certeza?</span><br><span class="text-sm text-gray-300">Buscando temperatura...</span>';
 
             try {
+                // Uso da ferramenta Google Search
                 const response = await google_search.search({queries:[temperaturaQueryPT, temperaturaQueryEN]}); 
                 
                 const snippet = response.results[0]?.snippet;
-                // Tenta extrair a temperatura (Ex: 25°C) ou usa o snippet completo
                 const tempText = snippet ? snippet.match(/(\d+[\s\S]?°C)/i)?.[0] || snippet : 'N/A';
                 
-                // Só atualiza se o estado ainda for 'confirmacao'
                 if (estadoTimer === 'confirmacao') {
                     estadoMensagem.innerHTML = `
                         <span class="text-xl font-bold text-red-400">Com certeza?</span>
@@ -1263,8 +1168,8 @@
                 estadoTimer = 'confirmacao';
                 document.getElementById('winModal').classList.add('hidden');
                 atualizarInterface(); 
-                await fetchAndDisplayTemperature(); // Busca a temperatura
-                return; // Não atualiza a interface de novo, pois a busca o fará
+                await fetchAndDisplayTemperature();
+                return;
             }
             atualizarInterface();
         }
@@ -1274,11 +1179,11 @@
             intervaloID = null;
             tempoRestanteSegundos = tempoTotalSegundos;
             estadoTimer = 'pronto';
-            document.getElementById('winModal').classList.add('hidden'); // Esconde o modal
+            document.getElementById('winModal').classList.add('hidden');
             atualizarInterface();
         }
 
-        // --- Funções Gemini API (Inalteradas, mas mantidas) ---
+        // --- Funções Gemini API ---
         const apiKey = ""; 
         const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
 
@@ -1370,10 +1275,20 @@
         
         // --- Inicialização Principal ---
         document.addEventListener('DOMContentLoaded', () => {
+            // 1. Carrega o estado do localStorage
+            gameState = loadStateFromLocalStorage();
+            
+            // 2. Define o tempo inicial no input baseado no estado carregado (ou padrão)
             minutosInput.value = Math.floor(tempoTotalSegundos / 60);
-            initializeFirebase();
+
+            // 3. Atualiza a UI com o estado carregado
+            updateScoreAndRosterUI(); 
+
+            // 4. Garante que o input de esporte reflita o estado
             document.getElementById('esporteInput').value = `${gameState.sport} (${gameState.gender})`;
-            // A chamada updateScoreAndRosterUI() agora é feita pelo listener do Firestore
+
+            // 5. Salva o estado logo após o carregamento para garantir a persistência (se for a primeira vez)
+            saveStateToLocalStorage();
         });
 
     </script>
